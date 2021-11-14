@@ -1,122 +1,64 @@
-# bot.py
 import os
-import io
 import random
-import math
-import time
-import datetime
-import asyncio
-from fractions import Fraction
+from datetime import datetime
 from csv import writer
-import codecs
 import discord
 from discord.ext import commands
-from discord.ext.commands import Cog
 from discord.ext.commands.core import check
-import pandas as pd
+from discord.ext.commands.errors import MissingRole
 from discord.utils import get
 from dotenv import load_dotenv
+from pymongo import MongoClient
+from discord_slash import SlashCommand, SlashContext
 
 load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN1')
+TOKEN = os.getenv('MATHBOT_TOKEN')
+cluster = MongoClient('MONGODB_TOKEN')
 
-daily_days = 0
-daily_hour = 0
-daily_minute = 0
-daily_second = 0
-total_rolls = ''
 amount = 0
-fun_fact = ''
-lmao = None
-pi = math.pi
-sqrt = math.sqrt
-asin = math.asin
-sin = math.sin
-acos = math.acos
-cos = math.cos
-atan = math.atan
-tan = math.tan
-log = math.log10
-fsum = math.fsum
-radians = math.radians
-degrees = math.degrees
-fact = math.factorial
-fabs = math.fabs
-ft_users = {} 
 
 bot = commands.Bot(command_prefix='//')
+slash = SlashCommand(bot, sync_commands=True) 
 
-@bot.event
-async def on_ready():
-    print('Math bot Has Connected!')
+@slash.slash(name='balance', description='Checks your current balance.', guild_ids=[755112397454180443])
+async def balance(ctx: SlashContext):
 
-class NewHelpName(commands.MinimalHelpCommand):
-    async def send_pages(self):
-        destination = self.get_destination()
-        for page in self.paginator.pages:
-            emby = discord.Embed(description=page)
-            await destination.send(embed=emby)
+    await ctx.defer()
+    username = ctx.author.name
+    balanceFound = False
 
-bot.help_command = NewHelpName()
+    # Searches the MathBot Database and grabs all users
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
+    
+    response = f'You did not have an account with us so we opened up an account for you, {username}! \
+                    \nPlease type //balance again to view your balance!\nTo learn more about how you earn credits, type //creditshelp!'
 
-# @bot.command(name='help', help='Provides each command and its help section.')
-# async def help(ctx):
-#     commands = ['']
-#     await ctx.send()
-
-@bot.command(name='balance', help='Checks your current balance.')
-async def balance(ctx):
-    with open('casino_currency.csv', 'r+') as file:
-        username = ctx.author.name
-        # Saves the file into a list
-        stronk = ''
-        names = []
-        grab_currency = {}
-        for i in file:
-            new_list = i.strip()
-            if new_list != '':
-                names.append(new_list)
-        # Makes a list so that you can access your balance in the future
-        for i in names:
-            naim = i.split(',')
-            grab_currency[naim[0]] = naim [1]
-
-        # Adds you to the file if you are not currently on it and gives a base balance of 1000 Credits
-        if username not in grab_currency:
-            name_list = []
-            stronk += str(username)
-            stronk += ','
-            stronk += '1000'
-            names.append(stronk)
-            name_list.append(stronk)
-            await ctx.send(f'You did not have an account with us so we opened up an account for you, {username}!\nPlease type //balance again to view your balance!\nTo learn more about how you earn credits, type //creditshelp!')
-            # Rewrites the file so that the user can be added to the list
-            dos = writer(file)
-            strur = []
-            strur.append(stronk)
-
-            for i in strur:
-                new_i = i.strip()
-                new_i = new_i.split(',')
-                dos.writerow(new_i)
-        else:
-            embed=discord.Embed(title = f'{ctx.author.name.capitalize()}\'s Balance', description=f'Balance: {int(grab_currency[username]):,} mChips!', color=0xF4513B)
+    # Searches the user until it finds the player who ran the command
+    for user in users:
+        if user['_id'] == username:
+            embed=discord.Embed(title = f'{ctx.author.name.capitalize()}\'s Balance', description=f'Balance: {user["balance"]:,.2f} mChips!'.format(amount), color=0xF4513B)
             await ctx.send(embed=embed)
+            balanceFound = True
 
-    return int(grab_currency[username])
+    # If No one was found, place them into the database
+    if not balanceFound:
+        post = {'_id': username, 'balance': 1000, 'daily': 0, 'weekly': 0, 'monthly': 0, 'nicknames': [], 'level': 0}
+        userCollection.insert_one(post)
+        await ctx.send(response)
 
-@bot.command(name='creditshelp', help='Teaches you how you earn credits using my bot!')
-async def help_center(ctx):
+@slash.slash(name='creditshelp', description='Teaches you how you earn credits using my bot!', guild_ids=[755112397454180443])
+async def help_center(ctx:SlashContext):
     await ctx.send(f'It is very simple to earn credits using my bot, it is also very abusable, but I don\'t care, that\'s the reward!\nTo gain credits to your name, you simply just use commands on my bot, and a random amount of credits will be rewarded!\n\nThese credits can be used to gamble, unlock cool things, such as ranks, and much more!\nOther commands to claim mChips inclide //daily, //weekly, and //monthly. As in their names, you must wait that long to claim it again.\nTo see what commands we have to offer, use the //help command.')
-    gain_credits(ctx)
 
-@bot.command(name='rps', help="//rps 'credits' 'rock,paper, or scissors'")
-async def rps(ctx, credits, rps_input):
+@slash.slash(name='rps', description="//rps 'credits' 'rock,paper, or scissors'", guild_ids=[755112397454180443])
+async def rps(ctx:SlashContext, credits, rps_input):
     username = ctx.author.name
     if credits.isdecimal:
         credits = int(credits)
         if int(credits) > 0:
-            truth = check_bal(ctx, credits)
+            truth = check_bal(username, credits)
             
             if truth:
                 
@@ -127,44 +69,44 @@ async def rps(ctx, credits, rps_input):
                         final_result = random.choice(result)
                         
                         if final_result == rps_input.lower():
-                            await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Tied!\n\nYour new balance is {display_current_balance(ctx)}.')
+                            await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Tied!\n\nYour new balance is {display_current_balance(username)}.')
                         
                         elif final_result == 'scissors':
-                            balance = credit_dedux(ctx, credits)
-                            balance = roulette_x_win(ctx, credits, 2)
+                            balance = credit_dedux(username, credits)
+                            balance = roulette_x_win(username, credits, 2)
                             await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Win!\n\nYour new balance is {balance}.')
                         
                         else:
-                            balance = credit_dedux(ctx, credits)
+                            balance = credit_dedux(username, credits)
                             await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Lost!\n\nYour new balance is {balance}.')
                     
                     elif rps_input.lower() == 'paper':
                         final_result = random.choice(result)
                         
                         if final_result == rps_input.lower():
-                            await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Tied!\n\nYour new balance is {display_current_balance(ctx)}.')
+                            await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Tied!\n\nYour new balance is {display_current_balance(username)}.')
                         
                         elif final_result == 'rock':
-                            balance = credit_dedux(ctx, credits)
-                            balance = roulette_x_win(ctx, credits, 2)
+                            balance = credit_dedux(username, credits)
+                            balance = roulette_x_win(username, credits, 2)
                             await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Win!\n\nYour new balance is {balance}.')
                         
                         else:
-                            balance = credit_dedux(ctx, credits)
+                            balance = credit_dedux(username, credits)
                             await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Lost!\n\nYour new balance is {balance}.')
                     else:
                         final_result = random.choice(result)
                         
                         if final_result == rps_input.lower():
-                            await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Tied!\n\nYour new balance is {display_current_balance(ctx)}.')
+                            await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Tied!\n\nYour new balance is {display_current_balance(username)}.')
                         
                         elif final_result == 'paper':
-                            balance = credit_dedux(ctx, credits)
-                            balance = roulette_x_win(ctx, credits, 2)
+                            balance = credit_dedux(username, credits)
+                            balance = roulette_x_win(username, credits, 2)
                             await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Win!\n\nYour new balance is {balance}.')
                         
                         else:
-                            balance = credit_dedux(ctx, credits)
+                            balance = credit_dedux(username, credits)
                             await ctx.send(f'{username}: {rps_input.capitalize()}!\nMath Bot: {final_result}!\nYou Lost!\n\nYour new balance is {balance}.')
                 else:
                     await ctx.send('Please leave a valid response! i.e. "Rock", "Paper", "Scissors".')
@@ -175,15 +117,16 @@ async def rps(ctx, credits, rps_input):
     else:
         await ctx.send('Please type a valid input for your credits! Ex. "//rps \'12\' \'rock\'"\nThis will place a 12 mChip bet on rock!')
 
-@bot.command(name='roulette', help='//roulettehelp to learn how to use this command properly.')
-async def gamble(ctx, credits=None, color=None, number=None):
+@slash.slash(name='roulette', description='//roulettehelp to learn how to use this command properly.', guild_ids=[755112397454180443])
+async def gamble(ctx:SlashContext, bid=None, color=None, number=None):
+    username = ctx.author.name
     chosen_color = ''
     try:
-        if credits != None:
-            if credits.isdecimal():
-                positive = check_bal(ctx, credits)
+        if bid != None:
+            if bid.isdecimal():
+                positive = check_bal(username, bid)
                 if positive:
-                    credits = int(credits)
+                    bid = int(bid)
                     if color == 'R' or color == 'G' or color == 'B' or color == 'N':
                         roulette_numbers = ['00', 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]
                         red_numbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 21, 23, 25, 27, 28, 30, 32, 34, 36]
@@ -191,17 +134,17 @@ async def gamble(ctx, credits=None, color=None, number=None):
                         chosen_number = random.choice(roulette_numbers)
                         if number != None:
                             if number == number:
-                                balance = credit_dedux(ctx, credits)
+                                balance = credit_dedux(username, credits)
                                 chosen_number = random.choice(roulette_numbers)
 
                                 if chosen_number == int(number):
                                     response = f'The ball landed on {chosen_number}, Congratulations!'
-                                    balance = roulette_x_win(ctx, credits, 36)
+                                    balance = roulette_x_win(username, bid, 36)
                                     total_balance = final_balance(balance)
                                     await ctx.send(f'{response}\nYour New Balance is: {total_balance}')
                                 elif chosen_number == str(number):
                                     response = f'The ball landed on {chosen_number}, Congratulations!'
-                                    balance = roulette_x_win(ctx, credits, 36)
+                                    balance = roulette_x_win(username, bid, 36)
                                     total_balance = final_balance(balance)
                                     await ctx.send(f'{response}\nYour New Balance is: {total_balance}')
 
@@ -212,7 +155,7 @@ async def gamble(ctx, credits=None, color=None, number=None):
                             else:
                                 await ctx.send('Woah there! You\'re bidding on a non-existent number! //roulettehelp to view the board!')
                         else:
-                            balance = credit_dedux(ctx, credits)
+                            balance = credit_dedux(username, bid)
                             if color == 'R':
                                 if chosen_number in red_numbers:
                                     chosen_color = 'Red'
@@ -223,7 +166,7 @@ async def gamble(ctx, credits=None, color=None, number=None):
 
                                 if chosen_number in red_numbers:
                                     response = f'The ball landed on {chosen_number} {chosen_color}, Congratulations!'
-                                    balance = roulette_x_win(ctx, credits, 2)
+                                    balance = roulette_x_win(username, bid, 2)
                                     total_balance = final_balance(balance)
                                     await ctx.send(f'{response}\nYour New Balance is: {total_balance}')
                                 else:
@@ -241,7 +184,7 @@ async def gamble(ctx, credits=None, color=None, number=None):
 
                                 if chosen_number == 0 or chosen_number == '00':
                                     response = f'The ball landed on {chosen_number} {chosen_color}, Congratulations!'
-                                    balance = roulette_x_win(ctx, credits, 14)
+                                    balance = roulette_x_win(username, bid, 14)
                                     total_balance = final_balance(balance)
                                     await ctx.send(f'{response}\nYour New Balance is: {total_balance}')
                                 else:
@@ -258,7 +201,7 @@ async def gamble(ctx, credits=None, color=None, number=None):
 
                                 if chosen_number in black_numbers:
                                     response = f'The ball landed on {chosen_number} {chosen_color}, Congratulations!'
-                                    balance = roulette_x_win(ctx, credits, 2)
+                                    balance = roulette_x_win(username, bid, 2)
                                     total_balance = final_balance(balance)
                                     await ctx.send(f'{response}\nYour New Balance is: {total_balance}')
                                 else:
@@ -276,346 +219,127 @@ async def gamble(ctx, credits=None, color=None, number=None):
     except:
         await ctx.send('We do not see you in our system. Please type //balance to create an account with us!')
 
-@bot.command(name='roulettehelp', help='Helps you properly use the roulette command.')
-async def rhelp(ctx):
+@slash.slash(name='roulettehelp', description='Helps you properly use the roulette command.', guild_ids=[755112397454180443])
+async def rhelp(ctx:SlashContext):
     red_numbers = str("""```diff\n- RED NUMBERS\n``````1 3 5 7 9 12 14 16 18 21 23 25 27 28 30 32 34 36```""")
     stragnt = '00 0'
     green_numbers = str(f"""```css\nGREEN COLORS\n``````css\n{stragnt}```""")
     black_numbers = str("""```BLACK COLORS\n``````2 4 6 8 10 11 13 15 17 19 20 22 24 26 29 31 33 35```""")
     roulette_command = str("""```css\n//roulette "Credits" "Color (R G B N)" "Number Relating to Color"```""")
     await ctx.send(f'To properly use the //roulette command, you must know the board and the format of the command to place your bet.\n\nThe command should go something like this, {roulette_command}\nEach color letter corresponds to a certain color. G = Green, R = Red, B = Black, and N = No Color\nNo color is usually used when you are bidding on a number rather than a color, however it does not matter what you put, just so long that you place in a valid color.\nYou DO NOT need to place something in the number slot. The only slots that require input is the Credits, and Color.\nIf you place a bet in the number, it will place your outcome very high but chances of you winning are very low, so keep that in mind.\n\nIf you need access to the roulette board, you can always type, //roulettehelp,\nHere\'s the board for reference.\n{red_numbers} {green_numbers} {black_numbers}')
-    gain_credits(ctx)
 
-def gain_credits(ctx):
-    final_information = {}
-    global_balance = 0
-    with open('casino_currency.csv', 'r+') as gan:
-        un = ctx.author.name
-        # Saves the file into a list
-        base_string = ''
-        name_file = []
-        grab_money = {}
-        for i in gan:
-            new_list = i.strip()
-            if new_list != '':
-                name_file.append(new_list)
-        # Makes a list so that you can access your balance in the future
-        for i in name_file:
-            naim = i.split(',')
-            grab_money[naim[0]] = naim[1]
-        # Adds you to the file if you are not currently on it and gives a base balance of 1000 Credits
-        if un in grab_money:
-            rand_amt = random.randint(10, 25)
-            jackpot_bonus = random.randint(1, 100)
-            if jackpot_bonus == 2:
-                rand_amt = random.randint(5000, 25000)
+@slash.slash(name='Daily', description='Your Daily Claim!', guild_ids=[755112397454180443])
+async def monthly(ctx: SlashContext):
 
-            currency = int(grab_money[un])
-            final_balance = currency + rand_amt
-            grab_money[un] = final_balance
+    daily = [250, 275, 300, 325]
 
-            stronk = ''
-            stronk += str(un)
-            stronk += ','
-            stronk += f'{final_balance}'
+    claim = xClaim(daily, ctx.author.name, 'daily')
+    await ctx.send(claim)
 
-        final_information = grab_money
-        global_balance = final_balance
-    os.remove('casino_currency.csv')
+@slash.slash(name='weekly', description='Your Weekly Claim!', guild_ids=[755112397454180443])
+async def monthly(ctx: SlashContext):
 
-    with open('casino_currency.csv', 'w+') as genius:
-        dos = writer(genius)
-        temp_list = []
-        temp_values = []
-        prog = 0
-        for i in list(final_information.values()):
-            temp_values.append(i)
+    weekly = [2000, 2250, 2500, 2750, 3000]
 
-        for x in list(final_information.keys()):
-            temp_list = []
-            temp_list.append(x)
-            temp_list.append(temp_values[prog])
-            prog += 1
-            dos.writerow(temp_list)
+    claim = xClaim(weekly, ctx.author.name, 'weekly')
+    await ctx.send(claim)
 
-    return global_balance
+@slash.slash(name='monthly', description='Your Monthly Claim!', guild_ids=[755112397454180443])
+async def monthly(ctx: SlashContext):
 
-@bot.command(name='daily', help='Use this to claim your daily reward!')
-async def daily(ctx):
-    global daily_hour
-    global daily_minute
-    global daily_second
-    current_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    current_date = datetime.datetime.strptime(current_date, '%Y-%m-%d %H:%M:%S')
-    create = daily_user_claim(ctx, current_date, 'daily_user_claim.csv', 1, 'daily')
-    if create == True:
-        random_creds = random.randint(125, 175)
-        balance = roulette_x_win(ctx, random_creds, 2)
-        future_date = current_date + datetime.timedelta(days=1)
-        await ctx.send('Daily reward claimed!')
-    elif create == False:
-        if daily_hour == 0:
-            if daily_minute == 0:
-                await ctx.send(f'You need to wait {daily_second} seconds to claim your daily!')
+    monthly = [8000, 8500, 9000, 9500, 10000]
+
+    claim = xClaim(monthly, ctx.author.name, 'monthly')
+    await ctx.send(claim)
+
+def xClaim(rewards, username, time):
+    '''
+        Adaptively update the x claim functions
+
+        rewards = array of random rewards for the given time
+        ctx = username of the user who ran the command
+        time = string of which function was ran
+    '''
+    nameDB = cluster['MathBot']
+    userInfo = nameDB['users']
+    users = userInfo.find()
+
+    rewardChoice = random.choice(rewards)
+
+    for user in users:
+        if user["_id"] == username:
+            if user[time] == 0:
+                userInfo.update_one({"_id": username}, {"$set": {'balance': user['balance'] + rewardChoice}}) # Updates the Balance of the User
+                userInfo.update_one({"_id": username}, {"$set": {time: datetime.now()}}) # Updates the Daily Timer
+                return f"+{rewardChoice}$ Your New Balance: ${user['balance'] + rewardChoice}" # Returns a string formatted balance to the user
             else:
-                await ctx.send(f'You need to wait {daily_minute} Minutes, and {daily_second} seconds to claim your daily!')
-        else:
-            await ctx.send(f'You need to wait {daily_hour} Hours, {daily_minute} Minutes, and {daily_second} seconds to claim your daily!')
-
-@bot.command(name='weekly', help='Use this to claim your weekly reward!')
-async def daily(ctx):
-    global daily_hour
-    global daily_minute
-    global daily_second
-    global daily_days
-    current_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    current_date = datetime.datetime.strptime(current_date, '%Y-%m-%d %H:%M:%S')
-    create = daily_user_claim(ctx, current_date, 'weekly_user_claim.csv', 7, 'weekly')
-    if create == True:
-        random_creds = random.randint(500, 1250)
-        balance = roulette_x_win(ctx, random_creds, 2)
-        future_date = current_date + datetime.timedelta(days=7)
-        await ctx.send('Weekly reward claimed!')
-    elif create == False:
-        if daily_days != 0:
-            await ctx.send(f'You need to wait {daily_days}, {daily_hour} Hours, {daily_minute} Minutes, and {daily_second} seconds to claim your Weekly!')
-        else:
-            if daily_hour == 0:
-                if daily_minute == 0:
-                    await ctx.send(f'You need to wait {daily_second} seconds to claim your weekly!')
+                datetimeObject =  datetime.now() - user[time]
+                days, hours, minutes = datetimeObject.days, datetimeObject.seconds//3600, (datetimeObject.seconds//60)%60
+                if time == 'monthly':
+                    days_left = 30 - days
+                    verify = 'month'
+                elif time == 'weekly':
+                    days_left = 6 - days
+                    verify = 'week'
                 else:
-                    await ctx.send(f'You need to wait {daily_minute} Minutes, and {daily_second} seconds to claim your weekly!')
-            else:
-                await ctx.send(f'You need to wait {daily_hour} Hours, {daily_minute} Minutes, and {daily_second} seconds to claim your Weekly!')
-    daily_days = 0
+                    days_left = 0
+                    verify = 'day'
+                hours_left = 23 - hours
+                minutes_left = 59 - minutes
+                if (days >= 1 and verify == 'day') or (days >= 7 and verify == 'week') or (days >= 31 and verify == 'month'):
+                    userInfo.update_one({"_id": username}, {"$set": {'balance': user['balance'] + rewardChoice}}) # Updates the Balance of the User
+                    userInfo.update_one({"_id": username}, {"$set": {time: datetime.now()}}) # Updates the x Timer
+                    return f"+{rewardChoice}$ Your New Balance: ${user['balance'] + rewardChoice}" # Returns a string formatted balance to the user
+                return f"Sorry! Looks like it hasn't quite been a {verify} yet!\nCome back in {days_left} days, {hours_left} hours and {minutes_left} minutes!"
+    return "Whoops! Looks like you're not showing up in our system!\nPlease use '/setup' to be registered in our system!"
 
-@bot.command(name='monthly', help='Use this to claim your monthly reward!')
-async def daily(ctx):
-    global daily_hour
-    global daily_minute
-    global daily_second
-    global daily_days
-    current_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    current_date = datetime.datetime.strptime(current_date, '%Y-%m-%d %H:%M:%S')
-    create = daily_user_claim(ctx, current_date, 'monthly_user_claim.csv', 31, 'monthly')
-    if create == True:
-        random_creds = random.randint(5000, 6250)
-        balance = roulette_x_win(ctx, random_creds, 2)
-        future_date = current_date + datetime.timedelta(days=31)
-        await ctx.send('Monthly reward claimed!')
-    elif create == False:
-        if daily_days != 0:
-            await ctx.send(f'You need to wait {daily_days}, {daily_hour} Hours, {daily_minute} Minutes, and {daily_second} seconds to claim your Monthly!')
-        else:
-            if daily_hour == 0:
-                if daily_minute == 0:
-                    await ctx.send(f'You need to wait {daily_second} seconds to claim your Monthly!')
-                else:
-                    await ctx.send(f'You need to wait {daily_minute} Minutes, and {daily_second} seconds to claim your Monthly!')
-            else:
-                await ctx.send(f'You need to wait {daily_hour} Hours, {daily_minute} Minutes, and {daily_second} seconds to claim your Monthly!')
-    daily_days = 0
+def display_current_balance(username):
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
 
-def daily_user_claim(ctx, current_time, file_name, day_time, claim):
-    new_list = []
-    info_list = []
-    check = False
-    username = ctx.author.name
-    global daily_hour
-    global daily_minute
-    global daily_second
-    global daily_days
-    with open(file_name, 'r+') as file:
-        flub = writer(file)
-        for i in file:
-            new_i = i.strip()
-            new_i = new_i.split(',')
-            if new_i != ['']:
-                new_list.append(new_i[0])
-                info_list.append(new_i)
-        if username not in new_list:
-            placeholder_list = []
-            placeholder_list.append(username)
-            placeholder_list.append(current_time)
-            flub.writerow(placeholder_list)
-            return True
-        else:
-            for i in info_list:
-                if username == i[0]:
-                    users_time = datetime.datetime.strptime(i[1], '%Y-%m-%d %H:%M:%S')
-                    future_date = users_time + datetime.timedelta(days=day_time)
-                    if current_time <= future_date:
-                        time_waited = current_time - users_time
-                        day_1 = future_date - users_time
-                        wait_this_long = day_1 - time_waited
-                        wait_this_long = str(wait_this_long)
-                        test_days = wait_this_long.split(',')
-                        if 'day' in test_days[0]:
-                            fixed_time = test_days[1].strip(' ')
-                            final_time = datetime.datetime.strptime(fixed_time, '%H:%M:%S')
-                            daily_days = test_days[0]
-                        else:
-                            final_time = datetime.datetime.strptime(wait_this_long, '%H:%M:%S')
-                        daily_hour = final_time.hour
-                        daily_minute = final_time.minute
-                        daily_second = final_time.second
-                        return False
-                    else:
-                        check = True
+    for user in users:
+        if user['_id'] == username:
+            return user['balance']
 
-    if check:
-        os.remove(file_name)
-        with open(file_name, 'w+') as file:
-            writer_object = writer(file)
-            for i in info_list:
-                if username == i[0]:
-                    placeheld_list = []
-                    placeheld_list.append(username)
-                    placeheld_list.append(current_time)
-                    writer_object.writerow(placeheld_list)
-                else:
-                    writer_object.writerow(i)
-        return True
+def credit_dedux(username, bid):
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
 
-def display_current_balance(ctx):
-    with open('casino_currency.csv', 'rt') as file:
-        username = ctx.author.name
-        for i in file:
-            if username in i:
-                new_i = i.strip()
-                new_i = new_i.split(',')
-                return new_i[1]
-
-def credit_dedux(ctx, credits):
-    final_information = {}
-    global_balance = 0
-    with open('casino_currency.csv', 'r+') as gan:
-        un = ctx.author.name
-        # Saves the file into a list
-        base_string = ''
-        name_file = []
-        grab_money = {}
-        for i in gan:
-            new_list = i.strip()
-            if new_list != '':
-                name_file.append(new_list)
-        # Makes a list so that you can access your balance in the future
-        for i in name_file:
-            naim = i.split(',')
-            grab_money[naim[0]] = naim[1]
-
-        # Adds you to the file if you are not currently on it and gives a base balance of 1000 Credits
-        if un in grab_money:
-            currency = int(grab_money[un])
-            final_balance = currency - credits
-            grab_money[un] = final_balance
-
-            stronk = ''
-            stronk += str(un)
-            stronk += ','
-            stronk += f'{final_balance}'
-        final_information = grab_money
-        global_balance = final_balance
-    os.remove('casino_currency.csv')
-
-    with open('casino_currency.csv', 'w+') as genius:
-        dos = writer(genius)
-        temp_list = []
-        temp_values = []
-        prog = 0
-        for i in list(final_information.values()):
-            temp_values.append(i)
-
-        for x in list(final_information.keys()):
-            temp_list = []
-            temp_list.append(x)
-            temp_list.append(temp_values[prog])
-            prog += 1
-            dos.writerow(temp_list)
-
-    return global_balance
+    for user in users:
+        if user["_id"] == username:
+            userCollection.update_one({"_id": username}, {"$set": {'balance': user['balance'] - (bid)}})
+            return user['balance'] - bid
 
 def final_balance(end_balance):
     final_balance = f"{end_balance} mChips"
     return final_balance
 
-def roulette_x_win(ctx, credits, multiplier):
-    final_information = {}
-    global_balance = 0
-    with open('casino_currency.csv', 'r+') as gan:
-        un = ctx.author.name
-        # Saves the file into a list
-        base_string = ''
-        name_file = []
-        grab_money = {}
-        for i in gan:
-            new_list = i.strip()
-            if new_list != '':
-                name_file.append(new_list)
+def roulette_x_win(username, credits, multiplier):
+    '''
+        Take the balance of the user and update it to their 
+        balance + the multiplier * credits
+    '''
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
 
-        # Makes a list so that you can access your balance in the future
-        for i in name_file:
-            naim = i.split(',')
-            grab_money[naim[0]] = naim[1]
+    for user in users:
+        if user["_id"] == username:
+            userCollection.update_one({"_id": username}, {"$set": {'balance': user['balance'] + (credits*multiplier)}})
+            return user['balance'] + credits * multiplier
 
-        # Adds you to the file if you are not currently on it and gives a base balance of 1000 Credits
-        if un in grab_money:
-            currency = int(grab_money[un])
-            winnings = int(credits) * multiplier
-            final_balance = currency + winnings
-            grab_money[un] = final_balance
+def check_bal(username, bid):
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
 
-            stronk = ''
-            stronk += str(un)
-            stronk += ','
-            stronk += f'{final_balance}'
-
-        final_information = grab_money
-        global_balance = final_balance
-    os.remove('casino_currency.csv')
-
-    with open('casino_currency.csv', 'w+') as genius:
-        dos = writer(genius)
-        temp_list = []
-        temp_values = []
-        prog = 0
-        for i in list(final_information.values()):
-            temp_values.append(i)
-
-        for x in list(final_information.keys()):
-            temp_list = []
-            temp_list.append(x)
-            temp_list.append(temp_values[prog])
-            prog += 1
-            dos.writerow(temp_list)
-
-    return global_balance
-
-def check_bal(ctx, credits):
-    with open('casino_currency.csv', 'r+') as gan:
-        un = ctx.author.name
-        # Saves the file into a list
-        base_string = ''
-        name_file = []
-        grab_money = {}
-        for i in gan:
-            new_list = i.strip()
-            if new_list != '':
-                name_file.append(new_list)
-        # Makes a list so that you can access your balance in the future
-        for i in name_file:
-            naim = i.split(',')
-            grab_money[naim[0]] = naim[1]
-
-        # Adds you to the file if you are not currently on it and gives a base balance of 1000 Credits
-        if un in grab_money:
-            currency = int(grab_money[un])
-            if int(credits) > currency:
-                positive = False
-            else:
-                positive = True
-
-    return positive
+    for user in users:
+        if user["_id"] == username:
+            if user['balance'] >= int(bid):
+                return True
+    return False
 
 def check_win_slots(winner, types, bid):
     check_consec = winner.split(' ')
@@ -681,10 +405,11 @@ def check_twoinarow(slots, types, bid):
     else:
         return False, amount
 
-@bot.command(name='cointoss', help='Makes a coin toss')
-async def toss(ctx, bid=None, call='nocall'):
+@slash.slash(name='cointoss', description='Makes a coin toss', guild_ids=[755112397454180443])
+async def toss(ctx:SlashContext, bid=None, call='nocall'):
     dice_away = False
     no_call = False
+    username = ctx.author.name
     if bid == None:
         coinflip = ['Heads', 'Tails']
         coin = random.choice(coinflip)
@@ -693,46 +418,48 @@ async def toss(ctx, bid=None, call='nocall'):
     elif (str(call.lower()) == 'heads') or (call.lower() == 'tails'):
         dice_away = True
     if dice_away:
-            thingy = check_bal(ctx, bid)
-            if thingy:
-                coinflip = ['Heads', 'Tails']
-                coin = random.choice(coinflip)
-                balance = credit_dedux(ctx, int(bid))
-                if call.lower() == coin.lower():
-                    balance = roulette_x_win(ctx, bid, 2)
-                    total_balance = final_balance(balance)
-                    await ctx.send(f'The coin landed on {coin}!\nYour New Balance is {total_balance}')
-                else:
-                    total_balance = final_balance(balance)
-                    await ctx.send(f'The coin landed on {coin}!\nYour New Balance is {total_balance}')
+        thingy = check_bal(username, bid)
+        if thingy:
+            coinflip = ['heads', 'tails']
+            coin = random.choice(coinflip)
+            balance = credit_dedux(username, int(bid))
+            if call.lower() == coin:
+                balance = roulette_x_win(username, int(bid), 2)
+                total_balance = final_balance(balance)
+                await ctx.send(f'The coin landed on {coin}!\nYour New Balance is {total_balance}')
             else:
+                total_balance = final_balance(balance)
+                await ctx.send(f'The coin landed on {coin}!\nYour New Balance is {total_balance}')
+        else:
                 await ctx.send("You do not have enough money to make that bid!")
     else:
         if not no_call:
             await ctx.send('You must make a valid call! //cointoss (amount) ("Heads" or "Tails").')        
 
-@bot.command(name='give', help='Owner can give credits this way!')
+@slash.slash(name='give', description='Owner can give credits this way!', guild_ids=[755112397454180443])
 @commands.has_role("Owner") # This must be exactly the name of the appropriate role
-async def give_creds(ctx, credits):
-    roulette_x_win(ctx, credits, 1)
-    balance = display_current_balance(ctx)
-    embed=discord.Embed(title = f'{ctx.author.name.capitalize()}\'s Balance', description=f'Your new balance is {balance}', color=0xF4513B)
+async def give_creds(ctx:SlashContext, member: discord.Member, credits):
+    username = (str(member)).split('#')[0]
+    roulette_x_win(username, int(credits), 1)
+    balance = display_current_balance(username)
+    embed=discord.Embed(title = f'{username.capitalize()}\'s Balance', description=f'Your new balance is {balance}', color=0xF4513B)
     await ctx.send(embed=embed)
 
-@bot.command(name='take', help='Owner can take credits away this way!')
+@slash.slash(name='take', description='Owner can take credits away this way!', guild_ids=[755112397454180443])
 @commands.has_role("Owner") # This must be exactly the name of the appropriate role
-async def give_creds(ctx, credits):
-    roulette_x_win(ctx, credits, -1)
-    balance = display_current_balance(ctx)
-    embed=discord.Embed(title = f'{ctx.author.name.capitalize()}\'s Balance', description=f'Your new balance is {balance}', color=0xF4513B)
+async def give_creds(ctx:SlashContext, member: discord.Member, credits):
+    username = (str(member)).split('#')[0]
+    roulette_x_win(username, int(credits), -1)
+    balance = display_current_balance(username)
+    embed=discord.Embed(title = f'{username.capitalize()}\'s Balance', description=f'Your new balance is {balance}', color=0xF4513B)
     await ctx.send(embed=embed)
 
 
 
 # FIX OASIS COMMAND, TEMPORTARILY DISABLED
 
-@bot.command(name='oasis', help='//oasishelp for more help')
-async def oasis(ctx):
+@slash.slash(name='oasis', description='//oasishelp for more help', guild_ids=[755112397454180443])
+async def oasis(ctx:SlashContext):
     cards = ['A♤', '2♤', '3♤', '4♤', '5♤', '6♤', '7♤', '8♤', '9♤', '10♤', 'J♤', 'Q♤', 'K♤',
              'A♡', '2♡','3♡', '4♡', '5♡', '6♡', '7♡', '8♡', '9♡', '10♡', 'J♡', 'Q♡', 'K♡',
              'A♢', '2♢', '3♢', '4♢', '5♢', '6♢', '7♢', '8♢', '9♢', '10♢', 'J♢', 'Q♢', 'K♢',
@@ -770,16 +497,17 @@ async def oasis(ctx):
 # async def helpoasis(ctx):
 #     pass
 
-@bot.command(name='slots', help='It\'s a slot machine...')
-async def slot_machine(ctx, credits=None):
-    credits = int(credits)
+@slash.slash(name='slots', description='It\'s a slot machine...', guild_ids=[755112397454180443])
+async def slot_machine(ctx:SlashContext, bid):
+    credits = int(bid)
+    username = ctx.author.name
     if credits == None:
         await ctx.send('Please specify an amount of credits!')
     
     else:
-        check_balance = check_bal(ctx, credits)
+        check_balance = check_bal(username, credits)
         if check_balance:
-            credit_dedux(ctx, credits)
+            credit_dedux(username, credits)
             random_slot_item = {
                 1: ['🍌 ', 20], # 20% chance
                 2: ['🐿️ ', 36], # 16 % chance
@@ -829,7 +557,7 @@ async def slot_machine(ctx, credits=None):
             win_value = check_win_slots(slots, types, credits)
             if win_value > 0:
                 delimiter = '+'
-                roulette_x_win(ctx, win_value, 1)
+                roulette_x_win(username, win_value, 1)
             else:
                 delimiter = '-'
                 win_value = credits
@@ -839,8 +567,8 @@ async def slot_machine(ctx, credits=None):
         else:
             await ctx.send('You need more money to make that bid!')
 
-@bot.command(name='placeholder', help='This is just a placeholder command for me to brainstorm new ideas')
-async def brainstorm(ctx):
+@slash.slash(name='placeholder', description='This is just a placeholder command for me to brainstorm new ideas', guild_ids=[755112397454180443])
+async def brainstorm(ctx:SlashContext):
     await ctx.send(f'You don\'t get to see my ideas because they\'re commented out >:D')
     # Monopoly?????? (Its own bot)
     # Checkers 
@@ -849,36 +577,100 @@ async def brainstorm(ctx):
     # Coin Toss against other people
     # Have a shop command that allows you to gain access to ranks and other things.
 
-@bot.command(name='testEmbeds', help='E')
-async def embed(ctx):
-    await ctx.send('This is a command to help me with embeds. Everything is commented out, so you are seeing this response.')
-    # embed=discord.Embed(title="Sample Embed", url="https://realdrewdata.medium.com/", description="This is an embed that will show how to build an embed and the different components", color=0xFF5733)
+# @slash.slash(name='testEmbeds', description='E', guild_ids=[755112397454180443])
+# async def embed(ctx:SlashContext):
+    # embed=discord.Embed(title="Sample Embed", url="https://realdrewdata.medium.com/", help="This is an embed that will show how to build an embed and the different components", color=0xFF5733)
     # await ctx.send(embed=embed)
 
-@bot.command(name='shop', help='Displays commands and prices for items to purchase')
-async def shop(ctx):
-    await ctx.send('This command is currently under development. Please be patient as it is being worked on.')
+@slash.slash(name='levelup', description='Use this to level up!', guild_ids=[755112397454180443])
+async def levelup(ctx:SlashContext, confirm=None):
+    username = ctx.author.name
+    leveled_up = False
 
-'''
-@bot.event
-async def on_message(message):
-    if not message.content.startswith("-"):
-        if message.author != bot.user:
-            ctx = message.author.name
-            if message.content.startswith('69'):
-                channel = message.channel
-                await channel.send('nice')
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
 
-            elif message.content.startswith('bet'):
-                channel = message.channel
-                await channel.send('bet')
+    for user in users:
+        if user['_id'] == username:
+            level_price = round(100 * (user['level'] + 1) + ((user['level'] + 1) ** 3), 0)
+            if confirm == None:
+                leveled_up = True
+                await ctx.send(f'The price to level up will be ${level_price:,.2f}'.format(amount))
+            elif user['balance'] >= level_price:
+                userCollection.update_one({"_id": username}, {"$set": {'level': user['level'] + 1}})
+                userCollection.update_one({"_id": username}, {"$set": {'balance': user['balance'] - level_price}})
+                leveled_up = True
+                await ctx.send(f'You have successfully leveled up to level {user["level"] + 1}')
+    if not leveled_up:
+        await ctx.send("You were either not found in our database or you don't have enough to level up!")
 
-            elif message.content.startswith('<:POGGERS:798741856337920030>'):
-                channel = message.channel
-                await channel.send('<:POGGERS:798741856337920030>')
+@slash.slash(name='price', description='Use this to view your level!', guild_ids=[755112397454180443])
+async def levelup(ctx:SlashContext, test_num):
+    username = ctx.author.name
+    await ctx.send(str())
 
-            elif message.content.startswith('e'):
-                channel = message.channel
-                await channel.send('e')
-'''
+@slash.slash(name='shop', description='Displays commands and prices for items to purchase', guild_ids=[755112397454180443])
+async def shop(ctx:SlashContext, option=None, number=None):
+    username = ctx.author.name
+    nicknames = {1: ['( ͡° ͜ʖ ͡°)', 150000],
+                 2: ['(∩ȍ ʖ̯ȍ)⊃━☆ﾟ.*', 200000],
+                 3: ['(っ^‿^)っ', 250000],
+                 4: ['(╯✧≖ᨓ≖）╯︵ ┻━┻', 1500000],
+                 5: ['ḑ̷̧̬̞͔̺̥͉̠͍͙͓̳̲̘͍̤̲̀͊̌̂͂̈́͑̉́̇̇̄̇̈́́̈́͂̂̾͑̄͘͝͝ę̴͖̥̟͙̺̩̹̣̱̣̤̌̈́͐̓͌̽̾̀̊̄̆̓̐̿͒̏̄̿͒̓͐̑̈̀̂̔̇̋̅̽͑̆̃̿͗́͑͂̉̕̕͠͝͝ą̴̭̼̹͍̩͔͎̞̜͙͈̆̋̍̓̋̈́̎͂̎̍̀̄̒̂͑̐̈́̋̈̈́̐̌̏̀̊͑́̎́̎̒̚͘̕̕͘͝͠͠͝͝t̷̨̬͈͍̝̱̀̇̎̈́̃̏̑͘̕ḩ̸̧̨̡̢̛̛͖̜̱͎̙͇̜̩͚̖̦̠̤͔̥̬͈̙̰̘͙͗͛̃̃͂́͑͋̅̉̌͑͑̽̊̏͛̆̓̂͒̉̑̃̏̌̐́͋͋̈́̈́̒͒̆̕̕͘̕͜͜͝', 2750000],
+                 6: ['s̷͈̎a̸͙͐n̵̦̾v̵̗̐i̵̘̚č̷̯h̴̥͒ 🥪', 3250000],
+                 7: ['товарищ', 4250000],
+                 8: ['─=≡Σᕕ( ﾟᗜ ﾟ)ᕗ', 9500000],
+                 9: ['ウィーブ', 10000000],
+                 10: ['ヽ༼ຈل͜ຈ༽ﾉ', 10000001],
+                 11: ['Problematic', 12500000],
+                 12: ['True Gamer', 22500000],
+                 13: ['ლ(▰෴▰ლ)', 25000000],
+                 14: [" ̿ ̿'̿'\̵͇̿̿\з=(•_•)=ε/̵͇̿̿/'̿'̿ ̿", 27500000],
+                 15: ['□ᨎ□', 30000000],
+                 16: ['Steev Jahbz', 45500000],
+                 17: ['(╭☞ ͡⎚ロ ͡⎚)╭☞', 52500000],
+                 18: ['♋︎', 694201337],
+                 19: ['DeLimiter', 99999999],
+                 20: ['(っ◔◡◔)っ ♥ Cannibalism ♥', 100000000],
+                 21: ['🍌', 500000000],
+                 22: ['Bit Boi', 2147483647],
+                 23: ['ງค๓๖liຖງ ค໓໓i¢t', 10000000000]}
+
+    if option == None:
+        nickname_format = ''
+        level_format = ''
+        for i in nicknames.keys():
+            nickname_format += f"{i}) {nicknames[i][0]} ${nicknames[i][1]:,.2f}\n".format(amount)
+        embed=discord.Embed(title="Shop", help="This is an embed that will show how to build an embed and the different components", color=0xFF5733)
+        embed.set_thumbnail(url=ctx.author.avatar_url)
+        embed.add_field(name="Nicknames", value=nickname_format, inline=True)
+        embed.add_field(name="Levels", value=level_format, inline=True)
+        embed.set_footer(text=f"Request made by: {username}")
+        await ctx.send(embed=embed)
+    else:
+        if option == 'nicknames':
+            if number.isdecimal:
+                number = int(number)
+                if number in nicknames:
+                    valid_balance = check_bal(username, nicknames[number][1])
+                    if valid_balance:
+                        userDB = cluster['MathBot']
+                        userCollection = userDB['users']
+                        users = userCollection.find()
+
+                        for user in users:
+                            if user['_id'] == username:
+                                if nicknames[number][0] not in user['nicknames']:
+                                    userCollection.update_one({"_id": username}, {"$set": {'nicknames': user['nicknames'] + [nicknames[number][0]]}})
+                                    credit_dedux(username, nicknames[number][1])
+                                    await ctx.author.edit(nick=nicknames[number][0])
+                                    await ctx.send(f'Your name has been updated to {nicknames[number][0]}')
+                                else:
+                                    await ctx.author.edit(nick=nicknames[number][0])
+                                    await ctx.send(f'You already have that nickname! Don\'t worry thoough, we went ahead and updated your name to {nicknames[number][0]}')
+                    else:
+                        await ctx.send(f"You do not have enough money to purchase that item, {username}!")
+            else: await ctx.send("Please enter a valid number!")
+
 bot.run(TOKEN)
