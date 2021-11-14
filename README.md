@@ -1,5 +1,7 @@
 # Overview
 
+## NOTICE - THIS PROJECT IS MAPPED AROUND MATHBOT.PY AND NOT MATHBOT2.PY THE SECOND FILE IS CURRENTLY IN THE WORKS FOR THE SAME REASONS OF MATHBOT.PY
+
 This was a project I started a year ago to test my coding skills as a way to learn new things, (*ahem* hence the lack of classes). However, this bot had no database, and the lack of storing information just rubbed me the wrong way.
 
 This is a discord bot API that allows you to gamble with fake currency, and earn prizes based on your good luck.
