@@ -228,7 +228,7 @@ async def rhelp(ctx:SlashContext):
     roulette_command = str("""```css\n//roulette "Credits" "Color (R G B N)" "Number Relating to Color"```""")
     await ctx.send(f'To properly use the //roulette command, you must know the board and the format of the command to place your bet.\n\nThe command should go something like this, {roulette_command}\nEach color letter corresponds to a certain color. G = Green, R = Red, B = Black, and N = No Color\nNo color is usually used when you are bidding on a number rather than a color, however it does not matter what you put, just so long that you place in a valid color.\nYou DO NOT need to place something in the number slot. The only slots that require input is the Credits, and Color.\nIf you place a bet in the number, it will place your outcome very high but chances of you winning are very low, so keep that in mind.\n\nIf you need access to the roulette board, you can always type, //roulettehelp,\nHere\'s the board for reference.\n{red_numbers} {green_numbers} {black_numbers}')
 
-@slash.slash(name='Daily', description='Your Daily Claim!', guild_ids=[755112397454180443])
+@slash.slash(name='daily', description='Your Daily Claim!', guild_ids=[755112397454180443])
 async def monthly(ctx: SlashContext):
 
     daily = [250, 275, 300, 325]
@@ -645,7 +645,6 @@ async def shop(ctx:SlashContext, option=None, number=None):
         embed=discord.Embed(title="Shop", help="This is an embed that will show how to build an embed and the different components", color=0xFF5733)
         embed.set_thumbnail(url=ctx.author.avatar_url)
         embed.add_field(name="Nicknames", value=nickname_format, inline=True)
-        embed.add_field(name="Levels", value=level_format, inline=True)
         embed.set_footer(text=f"Request made by: {username}")
         await ctx.send(embed=embed)
     else:
