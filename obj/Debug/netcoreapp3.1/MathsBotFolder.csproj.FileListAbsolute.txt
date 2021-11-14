@@ -1,0 +1,4 @@
+C:\Users\yeckr\OneDrive\Desktop\MathsBotFolder\obj\Debug\netcoreapp3.1\MathsBotFolder.csprojAssemblyReference.cache
+C:\Users\yeckr\OneDrive\Desktop\MathsBotFolder\obj\Debug\netcoreapp3.1\MathsBotFolder.AssemblyInfoInputs.cache
+C:\Users\yeckr\OneDrive\Desktop\MathsBotFolder\obj\Debug\netcoreapp3.1\MathsBotFolder.AssemblyInfo.cs
+C:\Users\yeckr\OneDrive\Desktop\MathsBotFolder\obj\Debug\netcoreapp3.1\MathsBotFolder.csproj.CoreCompileInputs.cache
