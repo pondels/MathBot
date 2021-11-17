@@ -2,6 +2,7 @@ import os
 import random
 from datetime import datetime
 from csv import writer
+from typing import Sized
 import discord
 from discord.ext import commands
 from discord.ext.commands.core import check
@@ -10,47 +11,117 @@ from discord.utils import get
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from discord_slash import SlashCommand, SlashContext
+from PIL import Image, ImageDraw, ImageFont
+import requests
+from io import BytesIO
+import numpy as np
 
 load_dotenv()
 TOKEN = os.getenv('MATHBOT_TOKEN')
-cluster = MongoClient('MONGODB_TOKEN')
+cluster = MongoClient('MONGO_TOKEN')
 
 amount = 0
 
 bot = commands.Bot(command_prefix='//')
 slash = SlashCommand(bot, sync_commands=True) 
 
-@slash.slash(name='balance', description='Checks your current balance.', guild_ids=[755112397454180443])
+@slash.slash(name='help', description='', guild_ids=[755112397454180443])
+async def help(ctx:SlashContext, option=None):
+    options = ['credits', 'rps', 'roulette', 'cointoss', 'slots', 'oasis', 'levels', 'shop', 'color', 'info','font']
+    if option in options:
+        if option == 'credits':
+            embed=discord.Embed(title = 'Credits', description='To gain credits using mathbot, you much gamble! Other ways you may gain credits \
+                                         is by using /daily, /weekly, and /monthly. These commands give a random amount of credits to you, and multiplies \
+                                         based on your level.', color=0xF4513B)
+            await ctx.send(embed=embed)
+        elif option == 'rps':
+            await ctx.send('E')
+        elif option == 'roulette':
+            red_numbers = str("""```diff\n-1 3 5 7 9 12 14 16 18 21 23 25 27 28 30 32 34 36```""")
+            green_numbers = str("""```css\n0 00```""")
+            black_numbers = str("""```2 4 6 8 10 11 13 15 17 19 20 22 24 26 29 31 33 35```""")
+            roulette_command = "```/roulette bid: '# of credits' color: (R G B N) number: 'Number Relating to Color'```"
+            embed=discord.Embed(title = 'Roulette Help', description=f'To properly use the /roulette command, you must know the board and the format of \
+                the command to place your bet.\n\nThe command should go something like this, {roulette_command}\nEach color letter corresponds to a certain \
+                color. G = Green, R = Red, B = Black, and N = No Color\nNo color is usually used when you are bidding on a number rather than a color,\
+                however it does not matter what you put, just so long that you place in a valid color.\nYou DO NOT need to place something in the number \
+                slot. The only slots that require input is the Credits, and Color.\nIf you place a bet in the number, it will place your outcome very high \
+                but chances of you winning are very low, so keep that in mind.\n\nIf you need access to the roulette board, you can always type, \
+                /help roulette,\nHere\'s the board for reference.\n{red_numbers} {green_numbers} {black_numbers}', color=0xF4513B)
+            await ctx.send(embed=embed)
+        elif option == 'cointoss':
+            await ctx.send('E')
+        elif option == 'slots':
+            await ctx.send('E')
+        elif option == 'oasis':
+            await ctx.send('E')
+        elif option == 'levels':
+            embed=discord.Embed(title = 'Levels', description='To view what level you have and how much it will cost to levelup, type ```/levelup```\n If you would just like to view you level, type ```/level```\nTo levelup, type ```/levelup confirm: confirm```', color=0xF4513B)
+            await ctx.send(embed=embed)
+        elif option == 'shop':
+            await ctx.send('E')
+        elif option == 'color':
+            colors =['white',     'light_grey',    'dark_grey', 'black',
+                     'red',       'blue',          'scarlet',   'blue_green',
+                     'orange',    'purple',        'tangerine', 'golden_brown',
+                     'yellow',    'pink',          'teal',      'hazelnut',
+                     'green',     'brown',         'turquoise', 'lime',
+                     'sunflower', 'sea_green',     'sky_blue',  'periwinkle', 
+                     'amber',     'grass_green',   'indigo',    'azure_blue', 
+                     'caramel',   'carrot_orange', 'warm_white']
+
+            allColors = ''
+            colors.sort()
+            for i in colors:
+                allColors += i + ' '
+            embed=discord.Embed(title = 'Colors', description=f'The color command is quite easy! This is used to choose what color you would like your information to be viewed as in the "/info" command!\nSimply type ```/color color: "name of color"``` and your text will show up in the chosen color.\nHere are all the color names in correct format ```{allColors}```', color=0xF4513B)
+            await ctx.send(embed=embed)
+        elif option == 'info':
+            await ctx.send('E')
+        elif option == 'font':
+            allFonts = ''
+            fonts = ['arial', 'comic', 'bahnschrift', 'consola', 'impact' , 'segoesc']
+            for i in fonts:
+                allFonts += i + ' '
+            embed=discord.Embed(title = 'Colors', description=f'The font command is very neat. This allows you to change the font of which you see in the /info command! To change your font, you want to type ```/font "font_name"``` These font names include: ```{allFonts}```', color=0xF4513B)
+            await ctx.send(embed=embed)
+    else:
+        allOptions = ''
+        for i in options: allOptions += i + ' \n'
+        embed=discord.Embed(title = 'Options:', description=allOptions, color=0xF4513B)
+        await ctx.send(embed=embed)
+
+@slash.slash(name='setup', description='Sets you up in our system!', guild_ids=[755112397454180443])
 async def balance(ctx: SlashContext):
 
     await ctx.defer()
     username = ctx.author.name
-    balanceFound = False
+    userFound = False
 
     # Searches the MathBot Database and grabs all users
     userDB = cluster['MathBot']
     userCollection = userDB['users']
     users = userCollection.find()
-    
-    response = f'You did not have an account with us so we opened up an account for you, {username}! \
-                    \nPlease type //balance again to view your balance!\nTo learn more about how you earn credits, type //creditshelp!'
 
-    # Searches the user until it finds the player who ran the command
     for user in users:
         if user['_id'] == username:
-            embed=discord.Embed(title = f'{ctx.author.name.capitalize()}\'s Balance', description=f'Balance: {user["balance"]:,.2f} mChips!'.format(amount), color=0xF4513B)
-            await ctx.send(embed=embed)
-            balanceFound = True
+            userFound = True
 
-    # If No one was found, place them into the database
-    if not balanceFound:
-        post = {'_id': username, 'balance': 1000, 'daily': 0, 'weekly': 0, 'monthly': 0, 'nicknames': [], 'level': 0}
+    if not userFound:
+        '''
+            _id = username of the player
+            balance = The user's balance
+            daily, weekly, monthly = Datetime objects determining time based money claims
+            nicknames = A list of nicknames the user has
+            level = The user's current level
+            backgrounds = A list of backgrounds the user has purchased. 1st index is the one they want to view
+            text_color = The color the user wants the text to show up as in /info
+        '''
+        post = {'_id': username, 'balance': 1000, 'daily': 0, 'weekly': 0, 'monthly': 0, 'nicknames': [], 'level': 1, 'background': 'red_basic.png', 'text_color': (0, 0, 0), 'font': 'arial.ttf'}
         userCollection.insert_one(post)
-        await ctx.send(response)
-
-@slash.slash(name='creditshelp', description='Teaches you how you earn credits using my bot!', guild_ids=[755112397454180443])
-async def help_center(ctx:SlashContext):
-    await ctx.send(f'It is very simple to earn credits using my bot, it is also very abusable, but I don\'t care, that\'s the reward!\nTo gain credits to your name, you simply just use commands on my bot, and a random amount of credits will be rewarded!\n\nThese credits can be used to gamble, unlock cool things, such as ranks, and much more!\nOther commands to claim mChips inclide //daily, //weekly, and //monthly. As in their names, you must wait that long to claim it again.\nTo see what commands we have to offer, use the //help command.')
+        await ctx.send("You have been successfully added to the system!")
+    else:
+        await ctx.send("You are already registered in our system!")
 
 @slash.slash(name='rps', description="//rps 'credits' 'rock,paper, or scissors'", guild_ids=[755112397454180443])
 async def rps(ctx:SlashContext, credits, rps_input):
@@ -111,13 +182,13 @@ async def rps(ctx:SlashContext, credits, rps_input):
                 else:
                     await ctx.send('Please leave a valid response! i.e. "Rock", "Paper", "Scissors".')
             else:
-                await ctx.send(f'You have insufficient funds! Please check your balance by using //balance!')
+                await ctx.send(f'You have insufficient funds! Please check your balance by using /balance!')
         else:
             await ctx.send('Please type a positive amount of credits!')
     else:
         await ctx.send('Please type a valid input for your credits! Ex. "//rps \'12\' \'rock\'"\nThis will place a 12 mChip bet on rock!')
 
-@slash.slash(name='roulette', description='//roulettehelp to learn how to use this command properly.', guild_ids=[755112397454180443])
+@slash.slash(name='roulette', description='"/help roulette" to learn how to use this command properly.', guild_ids=[755112397454180443])
 async def gamble(ctx:SlashContext, bid=None, color=None, number=None):
     username = ctx.author.name
     chosen_color = ''
@@ -153,7 +224,7 @@ async def gamble(ctx:SlashContext, bid=None, color=None, number=None):
                                     response = f'The ball landed on {chosen_number}, better luck next time!'
                                     await ctx.send(f'{response}\nYour New Balance is: {total_balance}')
                             else:
-                                await ctx.send('Woah there! You\'re bidding on a non-existent number! //roulettehelp to view the board!')
+                                await ctx.send('Woah there! You\'re bidding on a non-existent number! "/help roulette" to view the board!')
                         else:
                             balance = credit_dedux(username, bid)
                             if color == 'R':
@@ -211,22 +282,13 @@ async def gamble(ctx:SlashContext, bid=None, color=None, number=None):
                     else:
                         await ctx.send('Please type a valid color! (R=Red, G=Green, B=Black N=None) //roulettehelp for more info.')
                 else:
-                    await ctx.send(f'Please input a valid number of credits! //balance to see how much money you have!')
+                    await ctx.send(f'Please input a valid number of credits! /balance to see how much money you have!')
             else:
                 await ctx.send('Please enter a valid integer as a bid')
         else:
             await ctx.send('You have to enter a bid! //roulette "Bid" "Color". //roulettehelp for more info')
     except:
         await ctx.send('We do not see you in our system. Please type //balance to create an account with us!')
-
-@slash.slash(name='roulettehelp', description='Helps you properly use the roulette command.', guild_ids=[755112397454180443])
-async def rhelp(ctx:SlashContext):
-    red_numbers = str("""```diff\n- RED NUMBERS\n``````1 3 5 7 9 12 14 16 18 21 23 25 27 28 30 32 34 36```""")
-    stragnt = '00 0'
-    green_numbers = str(f"""```css\nGREEN COLORS\n``````css\n{stragnt}```""")
-    black_numbers = str("""```BLACK COLORS\n``````2 4 6 8 10 11 13 15 17 19 20 22 24 26 29 31 33 35```""")
-    roulette_command = str("""```css\n//roulette "Credits" "Color (R G B N)" "Number Relating to Color"```""")
-    await ctx.send(f'To properly use the //roulette command, you must know the board and the format of the command to place your bet.\n\nThe command should go something like this, {roulette_command}\nEach color letter corresponds to a certain color. G = Green, R = Red, B = Black, and N = No Color\nNo color is usually used when you are bidding on a number rather than a color, however it does not matter what you put, just so long that you place in a valid color.\nYou DO NOT need to place something in the number slot. The only slots that require input is the Credits, and Color.\nIf you place a bet in the number, it will place your outcome very high but chances of you winning are very low, so keep that in mind.\n\nIf you need access to the roulette board, you can always type, //roulettehelp,\nHere\'s the board for reference.\n{red_numbers} {green_numbers} {black_numbers}')
 
 @slash.slash(name='daily', description='Your Daily Claim!', guild_ids=[755112397454180443])
 async def monthly(ctx: SlashContext):
@@ -269,9 +331,9 @@ def xClaim(rewards, username, time):
     for user in users:
         if user["_id"] == username:
             if user[time] == 0:
-                userInfo.update_one({"_id": username}, {"$set": {'balance': user['balance'] + rewardChoice}}) # Updates the Balance of the User
+                userInfo.update_one({"_id": username}, {"$set": {'balance': user['balance'] + ((1+(user['level']*.05)) * rewardChoice)}}) # Updates the Balance of the User
                 userInfo.update_one({"_id": username}, {"$set": {time: datetime.now()}}) # Updates the Daily Timer
-                return f"+{rewardChoice}$ Your New Balance: ${user['balance'] + rewardChoice}" # Returns a string formatted balance to the user
+                return f"+{rewardChoice * (1+(user['level']*.05))}$ Your New Balance: ${user['balance'] + ((1+(user['level']*.05)) * rewardChoice)}" # Returns a string formatted balance to the user
             else:
                 datetimeObject =  datetime.now() - user[time]
                 days, hours, minutes = datetimeObject.days, datetimeObject.seconds//3600, (datetimeObject.seconds//60)%60
@@ -287,9 +349,9 @@ def xClaim(rewards, username, time):
                 hours_left = 23 - hours
                 minutes_left = 59 - minutes
                 if (days >= 1 and verify == 'day') or (days >= 7 and verify == 'week') or (days >= 31 and verify == 'month'):
-                    userInfo.update_one({"_id": username}, {"$set": {'balance': user['balance'] + rewardChoice}}) # Updates the Balance of the User
+                    userInfo.update_one({"_id": username}, {"$set": {'balance': user['balance'] + ((1+(user['level']*.05)) * rewardChoice)}}) # Updates the Balance of the User
                     userInfo.update_one({"_id": username}, {"$set": {time: datetime.now()}}) # Updates the x Timer
-                    return f"+{rewardChoice}$ Your New Balance: ${user['balance'] + rewardChoice}" # Returns a string formatted balance to the user
+                    return f"+{rewardChoice * (1+(user['level']*.05))}$ Your New Balance: ${user['balance'] + ((1+(user['level']*.05)) * rewardChoice)}" # Returns a string formatted balance to the user
                 return f"Sorry! Looks like it hasn't quite been a {verify} yet!\nCome back in {days_left} days, {hours_left} hours and {minutes_left} minutes!"
     return "Whoops! Looks like you're not showing up in our system!\nPlease use '/setup' to be registered in our system!"
 
@@ -303,6 +365,13 @@ def display_current_balance(username):
             return user['balance']
 
 def credit_dedux(username, bid):
+    '''
+        Removes x amount of money from a user's account
+
+        bid = amount of money to remove
+
+        returns: the end balance
+    '''
     userDB = cluster['MathBot']
     userCollection = userDB['users']
     users = userCollection.find()
@@ -313,13 +382,20 @@ def credit_dedux(username, bid):
             return user['balance'] - bid
 
 def final_balance(end_balance):
+    # Formats the balance to mChips
+    # returns: the formatted string
     final_balance = f"{end_balance} mChips"
     return final_balance
 
 def roulette_x_win(username, credits, multiplier):
     '''
-        Take the balance of the user and update it to their 
-        balance + the multiplier * credits
+        Updates a user's balance with the credits * multiplier
+
+        username = ctx.author.name
+        credits = # of credits to add to balance
+        multiplier = modifier for the credits
+
+        returns: the end balance
     '''
     userDB = cluster['MathBot']
     userCollection = userDB['users']
@@ -331,6 +407,13 @@ def roulette_x_win(username, credits, multiplier):
             return user['balance'] + credits * multiplier
 
 def check_bal(username, bid):
+    '''
+        Checks if a user has enough money for a bid
+
+        bid = amount of the desired bid
+
+        returns: True/False
+    '''
     userDB = cluster['MathBot']
     userCollection = userDB['users']
     users = userCollection.find()
@@ -350,7 +433,6 @@ def check_win_slots(winner, types, bid):
         return amount
 
     test, amount = check_twoinarow(check_consec, types, int(bid))
-
     if test:
         return amount
 
@@ -437,7 +519,7 @@ async def toss(ctx:SlashContext, bid=None, call='nocall'):
             await ctx.send('You must make a valid call! //cointoss (amount) ("Heads" or "Tails").')        
 
 @slash.slash(name='give', description='Owner can give credits this way!', guild_ids=[755112397454180443])
-@commands.has_role("Owner") # This must be exactly the name of the appropriate role
+@commands.has_role("Owner")
 async def give_creds(ctx:SlashContext, member: discord.Member, credits):
     username = (str(member)).split('#')[0]
     roulette_x_win(username, int(credits), 1)
@@ -446,7 +528,7 @@ async def give_creds(ctx:SlashContext, member: discord.Member, credits):
     await ctx.send(embed=embed)
 
 @slash.slash(name='take', description='Owner can take credits away this way!', guild_ids=[755112397454180443])
-@commands.has_role("Owner") # This must be exactly the name of the appropriate role
+@commands.has_role("Owner")
 async def give_creds(ctx:SlashContext, member: discord.Member, credits):
     username = (str(member)).split('#')[0]
     roulette_x_win(username, int(credits), -1)
@@ -458,7 +540,7 @@ async def give_creds(ctx:SlashContext, member: discord.Member, credits):
 
 # FIX OASIS COMMAND, TEMPORTARILY DISABLED
 
-@slash.slash(name='oasis', description='//oasishelp for more help', guild_ids=[755112397454180443])
+@slash.slash(name='oasis', description='"/help oasis" for more information', guild_ids=[755112397454180443])
 async def oasis(ctx:SlashContext):
     cards = ['A♤', '2♤', '3♤', '4♤', '5♤', '6♤', '7♤', '8♤', '9♤', '10♤', 'J♤', 'Q♤', 'K♤',
              'A♡', '2♡','3♡', '4♡', '5♡', '6♡', '7♡', '8♡', '9♡', '10♡', 'J♡', 'Q♡', 'K♡',
@@ -493,17 +575,12 @@ async def oasis(ctx:SlashContext):
     await msg.add_reaction('<:five:847215039856508980>')
     await msg.add_reaction('<:next:847215688933179403>')
 
-# @bot.command(name='oasishelp', help='Teaches you how to use the oasis command')
-# async def helpoasis(ctx):
-#     pass
-
 @slash.slash(name='slots', description='It\'s a slot machine...', guild_ids=[755112397454180443])
 async def slot_machine(ctx:SlashContext, bid):
     credits = int(bid)
     username = ctx.author.name
     if credits == None:
         await ctx.send('Please specify an amount of credits!')
-    
     else:
         check_balance = check_bal(username, credits)
         if check_balance:
@@ -567,16 +644,6 @@ async def slot_machine(ctx:SlashContext, bid):
         else:
             await ctx.send('You need more money to make that bid!')
 
-@slash.slash(name='placeholder', description='This is just a placeholder command for me to brainstorm new ideas', guild_ids=[755112397454180443])
-async def brainstorm(ctx:SlashContext):
-    await ctx.send(f'You don\'t get to see my ideas because they\'re commented out >:D')
-    # Monopoly?????? (Its own bot)
-    # Checkers 
-    # Uno? // Problems with personal hands and spamming DM's // Maybe find a workaround?
-    # Oasis Poker // Also known as the LUIGI POKER GAME FROM MY MARIO DS THINGY, yeah that game
-    # Coin Toss against other people
-    # Have a shop command that allows you to gain access to ranks and other things.
-
 # @slash.slash(name='testEmbeds', description='E', guild_ids=[755112397454180443])
 # async def embed(ctx:SlashContext):
     # embed=discord.Embed(title="Sample Embed", url="https://realdrewdata.medium.com/", help="This is an embed that will show how to build an embed and the different components", color=0xFF5733)
@@ -584,8 +651,41 @@ async def brainstorm(ctx:SlashContext):
 
 @slash.slash(name='levelup', description='Use this to level up!', guild_ids=[755112397454180443])
 async def levelup(ctx:SlashContext, confirm=None):
+    '''
+        Give's level information and levels up the user
+
+        ctx = user info
+        confirm = confirms the user wants to level up
+    '''
+    await ctx.defer()
     username = ctx.author.name
-    leveled_up = False
+    userFound = False
+
+    # Grabs all information from a database
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
+
+    for user in users:
+        if user['_id'] == username: # user found in database
+            userFound = True
+            level_price = round(100 * (user['level'] + 1) + ((user['level'] + 1) ** 3), 0) # Mathematically increases the price of a levelup
+            if confirm == None:
+                await ctx.send(f'The price to level up will be ${level_price:,.2f}.'.format(amount))
+            elif user['balance'] >= level_price: # User wants to level up and CAN level up
+                userCollection.update_one({"_id": username}, {"$set": {'level': user['level'] + 1}})
+                userCollection.update_one({"_id": username}, {"$set": {'balance': user['balance'] - level_price}})
+                await ctx.send(f'You have successfully leveled up to level {user["level"] + 1}')
+    if not userFound:
+        await ctx.send("You were either not found in our database! Please type /balance to create an account with us!")
+
+@slash.slash(name='level', description='Use this to level up!', guild_ids=[755112397454180443])
+async def levelup(ctx:SlashContext):
+    '''
+        Displays the current level of the user
+    '''
+    username = ctx.author.name
+    userFound = False
 
     userDB = cluster['MathBot']
     userCollection = userDB['users']
@@ -593,22 +693,10 @@ async def levelup(ctx:SlashContext, confirm=None):
 
     for user in users:
         if user['_id'] == username:
-            level_price = round(100 * (user['level'] + 1) + ((user['level'] + 1) ** 3), 0)
-            if confirm == None:
-                leveled_up = True
-                await ctx.send(f'The price to level up will be ${level_price:,.2f}'.format(amount))
-            elif user['balance'] >= level_price:
-                userCollection.update_one({"_id": username}, {"$set": {'level': user['level'] + 1}})
-                userCollection.update_one({"_id": username}, {"$set": {'balance': user['balance'] - level_price}})
-                leveled_up = True
-                await ctx.send(f'You have successfully leveled up to level {user["level"] + 1}')
-    if not leveled_up:
-        await ctx.send("You were either not found in our database or you don't have enough to level up!")
-
-@slash.slash(name='price', description='Use this to view your level!', guild_ids=[755112397454180443])
-async def levelup(ctx:SlashContext, test_num):
-    username = ctx.author.name
-    await ctx.send(str())
+            userFound = True
+            await ctx.send(f"Your current level is {user['level']}")
+    if not userFound:
+        await ctx.send("You weren't found in the database! Please type /balance to be placed in the system!")
 
 @slash.slash(name='shop', description='Displays commands and prices for items to purchase', guild_ids=[755112397454180443])
 async def shop(ctx:SlashContext, option=None, number=None):
@@ -637,17 +725,48 @@ async def shop(ctx:SlashContext, option=None, number=None):
                  22: ['Bit Boi', 2147483647],
                  23: ['ງค๓๖liຖງ ค໓໓i¢t', 10000000000]}
 
-    if option == None:
+    backgrounds = ['[Beach](https://www.worldsbestbars.com/wp-content/uploads/2021/11/South-africa-tracks-on-the-rocks-1920x720.jpg)',
+                   '[Bubbly](https://gmedia.playstation.com/is/image/SIEPDC/SummerDeals-kv-main-01-20210709-pc-1920x720?$native$)',
+                   '[Circuit](https://www.incoproip.com/wp-content/uploads/2020/06/Evolution-of-counterfeiting_banner-992x0-c-default.jpg)',
+                   '[Dots]()',
+                   '[Ducks]()',
+                   '[Flame](https://www.phdmedia.com/nicaragua/wp-content/uploads/sites/96/2017/03/banner-583.jpg)',
+                   '[Forest]()',
+                   '[Hue_Arrows](https://cdn.wallpapersafari.com/75/77/x4j1Rb.jpg)',
+                   '[Landscape](https://photos.tripsite.com/assets/files/1380/sunset-5371719.1920x720.jpg)',
+                   '[Map](https://excelsiorclasses.com/wp-content/uploads/2019/04/banner-3544296_1920.jpg)',]
+
+    backgrounds2 = ['[Node](https://www.microsoft.com/en-us/research/uploads/prod/2012/12/NYCAGTImage-1920x720.jpg)',
+                    '[One_Piece](https://wallpaperaccess.com/full/4205679.jpg)',
+                    '[Plasma](https://wp.biologos.org/wp-content/uploads/2018/11/science-and-god-1920x720.jpg)',
+                    '[Polyhedral](https://wallpaperaccess.com/full/1615368.jpg)',
+                    '[Red_Basic](https://images.squarespace-cdn.com/content/v1/5e1a8289c429c302ddea1459/1596503590491-UUJNM80B7C2QAADHZ5U6/Web+Banner6.jpg?format=2500w)',
+                    '[Sky](https://wp.biologos.org/wp-content/uploads/2019/10/sunset-WEB-1920x720.jpg)',
+                    '[Waifu](https://static.zerochan.net/Cocoro%40Function%21.full.1812576.jpg)',
+                    '[Waterfall](https://wallpaperaccess.com/full/4205645.jpg)',
+                    '[Wave](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSNE-EhuylARyoTZ_lH6Epg2BYVQF4aEY5cUw&usqp=CAU)',
+                    '[Zendikar](https://images.ctfassets.net/s5n2t79q9icq/2Pa7QHLWU1h7fn0uSp78OU/f96c13fc30647c976354e549ea423e24/backdrop-red-mountain.jpg?q=70)']
+
+    if option == None: # User is browsing the shop
         nickname_format = ''
-        level_format = ''
+        backgrounds_format = ''
+        backgrounds2_format = ''
         for i in nicknames.keys():
             nickname_format += f"{i}) {nicknames[i][0]} ${nicknames[i][1]:,.2f}\n".format(amount)
+        for i in backgrounds:
+            backgrounds_format += i + '\n'
+        for i in backgrounds2:
+            backgrounds2_format += i + '\n'
+
         embed=discord.Embed(title="Shop", help="This is an embed that will show how to build an embed and the different components", color=0xFF5733)
-        embed.set_thumbnail(url=ctx.author.avatar_url)
+        # embed.set_thumbnail(url=ctx.author.avatar_url)
         embed.add_field(name="Nicknames", value=nickname_format, inline=True)
+        embed.add_field(name="Backgrounds", value = backgrounds_format, inline=True) # FUTURE PURCHASABLES
+        embed.add_field(name="More Backgrounds", value = backgrounds2_format, inline=True) # FUTURE PURCHASABLES
         embed.set_footer(text=f"Request made by: {username}")
+        embed.set_author(name=username, icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)
-    else:
+    else: # User wants to buy something
         if option == 'nicknames':
             if number.isdecimal:
                 number = int(number)
@@ -667,9 +786,136 @@ async def shop(ctx:SlashContext, option=None, number=None):
                                     await ctx.send(f'Your name has been updated to {nicknames[number][0]}')
                                 else:
                                     await ctx.author.edit(nick=nicknames[number][0])
-                                    await ctx.send(f'You already have that nickname! Don\'t worry thoough, we went ahead and updated your name to {nicknames[number][0]}')
+                                    await ctx.send(f'You already have that nickname! Don\'t worry though, we went ahead and updated your name to {nicknames[number][0]}')
                     else:
                         await ctx.send(f"You do not have enough money to purchase that item, {username}!")
             else: await ctx.send("Please enter a valid number!")
 
+@slash.slash(name='color', description='Shows your stats!', guild_ids=[755112397454180443])
+async def test(ctx: SlashContext, color):
+    username = ctx.author.name
+    userFound = False
+    color = color.lower()
+
+    color_names = {'white': (255, 255, 255),    'light_grey': (132, 132, 130),   'dark_grey': (85, 85, 85),   'black': (0, 0, 0),
+                    'red': (255, 0, 0),          'blue': (0, 0, 255),             'scarlet': (255, 36, 0),     'blue_green': (13, 152, 186),
+                    'orange': (255, 127, 0),     'purple': (96, 0, 128),          'tangerine': (242, 133, 0),  'golden_brown': (184, 134, 11),
+                    'yellow': (255, 255, 0),     'pink': (255, 192, 203),         'teal': (0, 128, 128),       'Hazelnut': (133, 117, 78),
+                    'green': (0, 255, 0),        'brown': (136, 84, 11),          'turquoise': (64, 224, 208), 'lime': (50, 205, 50),
+                    'sunflower': (227, 171, 87), 'sea_green': (46, 139, 87),      'sky_blue': (135, 206, 235), 'periwinkle': (204, 204, 255), 
+                    'amber': (255, 191, 0),      'grass_green': (19, 136, 8),     'indigo': (75, 0, 130),      'azure_blue': (0, 127, 255), 
+                    'caramel': (153, 101, 21),   'carrot_orange': (237, 145, 33), 'warm_white': (255, 222, 173)}
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
+
+    for user in users:
+        if user['_id'] == username:
+            if color in color_names:
+                color_chosen = color_names[color]
+                userCollection.update_one({"_id": username}, {"$set": {'text_color': color_chosen}})
+                userFound = True
+                await ctx.send("Color Updated! Use '/info' to see your new color!")
+    if not userFound:
+        await ctx.send("Looks like you're not in our database! Please use '/setup' to be placed in the database")
+
+@slash.slash(name='background', description='Choose which background to view when using /info!', guild_ids=[755112397454180443])
+async def test(ctx: SlashContext, background):
+    username = ctx.author.name
+    userFound = False
+
+    background_names = ['beach', 'bubbly', 'circuit', 'dots', 'ducks', 'flame', 'forest', 'hue_arrows',
+                        'landscape', 'map', 'node', 'one_piece', 'plasma', 'polyhedral', 'red_basic', 'sky',
+                        'waifu', 'waterfall', 'wave', 'zendikar']
+            
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
+
+    for user in users:
+        if user['_id'] == username:
+            userFound = True
+            if background in background_names:
+                userCollection.update_one({"_id": username}, {"$set": {'background': f'{background}.png'}})
+                await ctx.send("Background Updated! Use '/info' to see your new color!")
+            else:
+                await ctx.send('That background isn\'t in our database! Please refer to "/shop" to view our backgrounds! Although they are in the shop, the backgrounds are entirely free!')
+    if not userFound:
+        await ctx.send("Looks like you're not in our database! Please use '/setup' to be placed in the database")
+
+@slash.slash(name='font', description='Choose which font to view when using /info!', guild_ids=[755112397454180443])
+async def test(ctx: SlashContext, font):
+    username = ctx.author.name
+    userFound = False
+
+    font_names = ['arial', 'comic', 'bahnschrift', 'consola', 'impact' , 'segoesc']
+            
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
+
+    for user in users:
+        if user['_id'] == username:
+            userFound = True
+            if font in font_names:
+                userCollection.update_one({"_id": username}, {"$set": {'font': f'{font}.ttf'}})
+                await ctx.send("Font Updated! Use '/info' to see your new color!")
+            else:
+                await ctx.send('That background isn\'t in our database! Please refer to "/shop" to view our backgrounds! Although they are in the shop, the backgrounds are entirely free!')
+    if not userFound:
+        await ctx.send("Looks like you're not in our database! Please use '/setup' to be placed in the database")
+
+@slash.slash(name='info', description='Shows your stats!', guild_ids=[755112397454180443])
+async def test(ctx: SlashContext):
+    await ctx.defer()
+    username = ctx.author.name
+
+    userFound = False
+
+    userDB = cluster['MathBot']
+    userCollection = userDB['users']
+    users = userCollection.find()
+
+    for user in users:
+        if user['_id'] == username:
+            userFound = True
+            level = user['level']
+            balance = user['balance']
+            image = user['background'] # Background of the image
+            userFont = user['font'] # Font the user chooses
+            font_color = (user['text_color'][0], user['text_color'][1], user['text_color'][2]) # RGB Tuple defining the color of the text
+    if userFound:
+        with Image.open(f"banners/{image}") as img:
+            draw = ImageDraw.Draw(img) # Initializes the background
+            # Font for text and set's information on background
+            fontsize = 80
+            font = ImageFont.truetype(userFont, fontsize)
+            draw.text((675, 160), username.title(), font_color, font=font)
+            draw.text((675, 320), f"Level: {level}", font_color, font=font)
+            draw.text((675, 480), f"Balance: ${balance:,.2f}".format(amount), font_color, font=font)
+            # Grabs user's avatar and saves it to avatar.png
+            avatar = ctx.author.avatar_url
+            response = requests.get(avatar)
+            img2 = Image.open(BytesIO(response.content))
+            img2 = img2.resize([480, 480])
+            img2.save('avatar.png')
+            # # ^^^ # GRABS THE USER'S AVATAR AND SAVES IT TO A FILE # ^^^ #
+            # # vvv # GRABS THE AVATAR AND CONVERTS IMAGE TO CIRCLE # vvv #
+            # img2=Image.open("avatar.png").convert("RGB") # COMMENTED OUT RIGHT NOW DUE TO CIRCLE BEING DUMBDUMB
+            # npImage=np.array(img2)
+            # h,w=img2.size
+            # alpha = Image.new('L', img2.size,0)
+            # draw = ImageDraw.Draw(alpha)
+            # draw.pieslice([0,0,h,w],0,360,fill=255)
+            # npAlpha=np.array(alpha)
+            # npImage=np.dstack((npImage,npAlpha))
+            # Image.fromarray(npImage).save('avatar.png')
+            # ^^^ # CONVERTS THE IMAGE TO A CIRCLE # ^^^ #
+            avatar = Image.open('avatar.png')
+            img.paste(avatar, (120, 120))
+            img.save('placeholder.png')
+            picture = discord.File('placeholder.png')
+            await ctx.send(file=picture)
+    else:
+        await ctx.send("Looks like you weren't found in the database! Please use /setup to do so and try again!")
 bot.run(TOKEN)
